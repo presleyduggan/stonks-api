@@ -1,7 +1,11 @@
 from flask import Flask, jsonify
+from flask_cors import CORS
 from yahoo_fin import stock_info as si
 from decimal import Decimal
 #import time
+
+appFlask = Flask(__name__)
+CORS(appFlask)
 
 def get_initial_prices(stock_dict):
     list_o_prices = []
@@ -32,11 +36,8 @@ def get_spy_data():
     #print(stonk)
     return stonk
 
-
-
-appFlask = Flask(__name__)
 @appFlask.route('/api', methods=['GET', 'POST'])
-def home():
+def home2():
     names = ["adam", "ben", "charlie", "dave"]
     data = [1,2,3,4]
     price = [10, 20, 30, 40]
@@ -50,6 +51,10 @@ def home():
     send = jsonify(dict_list)
     print(send)
     return send
+
+@appFlask.route('/', methods=['GET'])
+def home():
+    return "This site is no longer valid and is only used for API purposes. Please visit www.pres.dev/stonks"
 
 
 @appFlask.route('/api/SPY', methods=['GET', 'POST'])
@@ -101,4 +106,6 @@ def stonk_api():
 
 
 if __name__ == "__main__":
+    #from waitress import serve
     appFlask.run(debug=False)
+    #serve(appFlask, host="0.0.0.0", port=8080)

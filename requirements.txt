@@ -1,2 +1,4 @@
 flask
 yahoo_fin
+waitress
+flask_cors
