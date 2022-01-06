@@ -1,8 +1,7 @@
 from flask import Flask, jsonify
 from yahoo_fin import stock_info as si
 from decimal import Decimal
-import collections
-import time
+#import time
 
 def get_initial_prices(stock_dict):
     list_o_prices = []
@@ -30,7 +29,7 @@ def get_spy_data():
     stonk["ticker"] = ["SPY"]
     stonk["initial"] = [474.96]
     get_current_prices(stonk)
-    print(stonk)
+    #print(stonk)
     return stonk
 
 
@@ -59,13 +58,13 @@ def get_spy():
     stonk["ticker"] = ["SPY"]
     stonk["initial"] = [474.96]
     get_current_prices(stonk)
-    print(stonk)
+    #print(stonk)
     #get_current_prices(stonk)
     return "SPY"
 
 @appFlask.route('/api/stonks', methods=['GET', 'POST'])
 def stonk_api():
-    start = time.time()
+    #start = time.time()
     stonk_data = {}
     stonk_data["names"] = ['David', 'Jack', 'Jawsh', 'Mark', 'Mitch', 'Poles', 'Presley', 'Rex', 'Sean']
     stonk_data["ticker"] = ['SMRT', 'AI', 'DIS', 'SE', 'XLNX', 'ROKU', 'AAPL', 'NVDA', 'IBM']
@@ -73,11 +72,11 @@ def stonk_api():
     stonk_data["current"] = {}
     stonk_data["percent"] = {}
     get_current_prices(stonk_data)
-    end = time.time()
+    #end = time.time()
     # get max
     max_stonker = max(range(len(stonk_data["percent"])), key=lambda index: stonk_data['percent'][index])
-    print(stonk_data["names"][max_stonker])
-    print(end-start)
+    #print(stonk_data["names"][max_stonker])
+    #print(end-start)
     send_arr = []
     for i in range(0, len(stonk_data["names"])):
         new_dict = {}
@@ -102,4 +101,4 @@ def stonk_api():
 
 
 if __name__ == "__main__":
-    appFlask.run(debug=True)
+    appFlask.run(debug=False)
