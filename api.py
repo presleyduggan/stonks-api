@@ -25,6 +25,16 @@ def get_current_prices(stock_dict):
         current_p.append(round(si.get_live_price(stock_dict["ticker"][i]),2))
         percent_c.append(round((((current_p[i]-stock_dict["initial"][i])/stock_dict["initial"][i])*100),2))
 
+
+    if(len(stock_dict["ticker"]) > 4):
+        #print("starting to get nums ------")
+        #print(current_p)
+        # fix Mitch's price -- XLNX turned into 1.7234 shares of AMD
+        current_p[4] = round(current_p[4] * 1.7234, 2)
+        percent_c[4] = round((((current_p[4]-stock_dict["initial"][4])/stock_dict["initial"][4])*100),2)
+        #print(f"Mitch's is {current_p[4]} and {percent_c[4]}")
+    
+
     stock_dict["current"] = current_p
     stock_dict["percent"] = percent_c
 
@@ -33,6 +43,7 @@ def get_spy_data():
     stonk["ticker"] = ["SPY"]
     stonk["initial"] = [474.96]
     get_current_prices(stonk)
+    get_current_prices
     #print(stonk)
     return stonk
 
@@ -72,7 +83,7 @@ def stonk_api():
     #start = time.time()
     stonk_data = {}
     stonk_data["names"] = ['David', 'Jack', 'Jawsh', 'Mark', 'Mitch', 'Poles', 'Presley', 'Rex', 'Sean']
-    stonk_data["ticker"] = ['SMRT', 'AI', 'DIS', 'SE', 'XLNX', 'ROKU', 'AAPL', 'NVDA', 'IBM']
+    stonk_data["ticker"] = ['SMRT', 'AI', 'DIS', 'SE', 'AMD', 'ROKU', 'AAPL', 'NVDA', 'IBM'] # Mitch is now AMD -- XLNX acquired
     stonk_data["initial"] = [9.68, 31.25, 154.89, 223.71, 212.03, 228.2, 177.57, 294.11, 133.66]
     stonk_data["current"] = {}
     stonk_data["percent"] = {}
@@ -107,5 +118,5 @@ def stonk_api():
 
 if __name__ == "__main__":
     #from waitress import serve
-    appFlask.run(debug=False)
+    appFlask.run(debug=True)
     #serve(appFlask, host="0.0.0.0", port=8080)
