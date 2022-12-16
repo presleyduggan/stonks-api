@@ -1,11 +1,33 @@
-from flask import Flask, jsonify
-from flask_cors import CORS
+from flask import Flask, jsonify, request
+from flask_cors import CORS, cross_origin
+from flask_sqlalchemy import SQLAlchemy
 from yahoo_fin import stock_info as si
 from decimal import Decimal
+import pandas as pd
+import random
+import bcrypt
 #import time
 
 appFlask = Flask(__name__)
-CORS(appFlask)
+CORS(appFlask, supports_credentials=True)
+SQLALCHEMY_DATABASE_URI = "mysql+mysqlconnector://{username}:{password}@{hostname}/{databasename}".format(
+    username="",
+    password="",
+    hostname="",
+    databasename="",
+)
+appFlask.config["SQLALCHEMY_DATABASE_URI"] = SQLALCHEMY_DATABASE_URI
+appFlask.config["SQLALCHEMY_POOL_RECYCLE"] = 299
+appFlask.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db = SQLAlchemy(appFlask)
+
+users = []
+
+stock_picks = []
+
+# ('alex', 'alex@gmail.com', 'test5678', 'qwqq', 'apple')
+
 
 def get_initial_prices(stock_dict):
     list_o_prices = []
@@ -65,8 +87,131 @@ def home2():
 
 @appFlask.route('/', methods=['GET'])
 def home():
+    #updateUsers()
+    #print(len(users))
+    #print(users[0])
+    updateStockPicks("Alex", "$POOP")
+    results = db.session.execute("SELECT * from stock_picks;")
+    print(results.fetchall())
+    """  results = db.session.execute("DELETE from users where username=\"john\";")
+    results = db.session.execute("SELECT * from users;")
+    print(results.fetchall())
+    results = db.session.execute("SELECT * from users where username=\"presley\";")
+    results = db.session.execute("SELECT * from users;")
+    print(results.fetchall())
+    user="testdummy"
+    email="test@gmail.com"
+    password= bytes("password22", "utf-8")
+    salt= bcrypt.gensalt()
+    password = bcrypt.hashpw(password, salt)
+    name="test man"
+    results = db.session.execute(f"insert into users values(\"{user}\", \"{email}\", \"{password.decode('utf-8')}\", \"{salt.decode('utf-8')}\", \"{name}\");")
+    results = db.session.execute("SELECT * from users;")
+    print(results.fetchall())
+    checkUserPassword("testdummy", "password22") """
     return "This site is no longer valid and is only used for API purposes. Please visit www.pres.dev/stonks"
 
+
+def updateUsers():
+    results = db.session.execute("SELECT * from users;")
+    users = []
+    for user in results:
+        users.append(user)
+    print(users[0])
+
+
+def updatePassword(user, password):
+    print("update")
+    salt= bcrypt.gensalt()
+    hashed_pwd = bcrypt.hashpw(bytes(password, "utf-8"), salt)
+    results = db.session.execute(f"UPDATE users SET password = \"{hashed_pwd.decode('utf-8')}\", salt = \"{salt.decode('utf-8')}\" WHERE username =\"{user}\";")
+    db.session.commit()
+
+
+@appFlask.route('/api/login', methods=['POST'])
+@cross_origin(supports_credentials=True)
+def tryLogin():
+    print("trying to login")
+    content_type = request.headers.get('Content-Type')
+    if content_type == 'application/json':
+        json = request.json
+        print(json)
+        user = json['username']
+        password = json['password']
+        if(checkUserPassword(user,password)):
+            return jsonify("this-is-secure")
+    return jsonify("deny")
+
+
+def updateStockPicks(user, newpick):
+    results = db.session.execute("SELECT * from stock_picks;").fetchall()
+    picks = []
+    for current in results:
+        picks.append(current)
+    notPicked = True
+    for pick in picks:
+        if pick[1] == newpick:
+            notPicked = False
+    
+    if(notPicked):
+        # update
+        results = db.session.execute(f"UPDATE stock_picks SET stock= \"{newpick}\" WHERE user=\"{user}\";")
+        db.session.commit()
+        # TODO: return some kind of json response
+        return
+    # TODO: return negative json response
+    print("cannot update stock because it was already picked")
+    return
+
+
+def pickStock(user, stock_pick):
+    results = db.session.execute("SELECT * from stock_picks;").fetchall()
+    picks = []
+    for current in results:
+        picks.append(current)
+    notPicked = True
+    for pick in picks:
+        if pick[1] == stock_pick:
+            notPicked = False
+    
+    if(notPicked):
+        # update
+        print("inserting!")
+        results = db.session.execute(f"insert into stock_picks values(\"{user}\", \"{stock_pick}\", \"Pending\");")
+        db.session.commit()
+        # TODO: return some kind of json response
+        return
+    # TODO: return negative json response
+    print("Stock was already picked by a user")
+    return
+
+
+
+
+
+
+def checkUserPassword(username, password):
+    results = db.session.execute("SELECT * from users;").fetchall()
+    users = []
+    for result in results:
+        users.append(result)
+    for user in users:
+        #results = list(db.session.execute(f"SELECT * from users where username=\"{user}\";").fetchall())
+        #print(results)
+        print(f"user = {user[0]} and username = {username}")
+        if(user[0] == username):
+            current_pwd = user[2]
+            bpassword= bytes(password, "utf-8")
+            print("salt= "+user[3])
+            hashed_pwd = bcrypt.hashpw(bpassword, bytes(user[3], "utf-8"))
+            print(f"current = {current_pwd} and hash = {hashed_pwd.decode('utf-8')}")
+            if(current_pwd == hashed_pwd.decode('utf-8')):
+                print('access granted')
+                return True
+        #if(users[0] == user):
+        #    print("user found.. checking password")
+        #    if()
+    return False
 
 @appFlask.route('/api/SPY', methods=['GET', 'POST'])
 def get_spy():
@@ -77,6 +222,18 @@ def get_spy():
     #print(stonk)
     #get_current_prices(stonk)
     return "SPY"
+
+@appFlask.route('/api/playground', methods=['POST'])
+@cross_origin(supports_credentials=True)
+def check_pwd():
+    print("helloooooooo")
+    content_type = request.headers.get('Content-Type')
+    if content_type == 'application/json':
+        json = request.json
+        print(json)
+        if json['password'] == 'eagles':
+            return jsonify("valid")
+    return jsonify("deny")
 
 @appFlask.route('/api/stonks', methods=['GET', 'POST'])
 def stonk_api():
@@ -114,6 +271,23 @@ def stonk_api():
     #test initial price
     #from1999 = get_data('msft' , start_date = '01/01/1999')
     return send
+
+@appFlask.route('/api/random', methods=['GET', 'POST'])
+def random_spy():
+    rand_num = random.randrange(1,506)
+    data = open("data/spy_stocks.txt")
+    data = pd.read_csv('data/spy_stocks.txt', header=None)
+    name = data.iloc[rand_num][0]
+    ticker = si.get_company_info(name)
+    print(ticker)
+    for key in ticker:
+        print("???")
+        print(ticker['Value']['zip'])
+        print(ticker['Value']['zip'])
+        print(ticker['Value']['zip'])
+        print(ticker['Value']['zip'])
+
+    return str(ticker)
 
 
 if __name__ == "__main__":
