@@ -6,13 +6,15 @@ from decimal import Decimal
 import pandas as pd
 import random
 import bcrypt
+from datetime import date, datetime
+import functools
 #import time
 
 appFlask = Flask(__name__)
 CORS(appFlask, supports_credentials=True)
 SQLALCHEMY_DATABASE_URI = "mysql+mysqlconnector://{username}:{password}@{hostname}/{databasename}".format(
     username="",
-    password="",
+    password="!",
     hostname="",
     databasename="",
 )
@@ -27,6 +29,26 @@ users = []
 stock_picks = []
 
 # ('alex', 'alex@gmail.com', 'test5678', 'qwqq', 'apple')
+def is_valid(api_key):
+    API_KEY = ""
+    if API_KEY == api_key:
+        return True
+    return False
+
+
+def api_required(func):
+    @functools.wraps(func)
+    def decorator(*args, **kwargs):
+        if request.json:
+            api_key = request.json.get("api_key")
+        else:
+            return {"error": "Please provide an API key"}, 400
+        # Check if API key is correct and valid
+        if request.method == "POST" and is_valid(api_key):
+            return func(*args, **kwargs)
+        else:
+            return {"error": "The provided API key is not valid"}, 403
+    return decorator
 
 
 def get_initial_prices(stock_dict):
@@ -127,10 +149,11 @@ def updatePassword(user, password):
     results = db.session.execute(f"UPDATE users SET password = \"{hashed_pwd.decode('utf-8')}\", salt = \"{salt.decode('utf-8')}\" WHERE username =\"{user}\";")
     db.session.commit()
 
-
 @appFlask.route('/api/login', methods=['POST'])
 @cross_origin(supports_credentials=True)
+@api_required
 def tryLogin():
+    scary_words = ["select" ,"delete", "drop", "remove", "insert", "update", "create", "alter"]
     print("trying to login")
     content_type = request.headers.get('Content-Type')
     if content_type == 'application/json':
@@ -138,9 +161,71 @@ def tryLogin():
         print(json)
         user = json['username']
         password = json['password']
-        if(checkUserPassword(user,password)):
-            return jsonify("this-is-secure")
+        sqlcheck = user.lower()
+        if any(x in sqlcheck for x in scary_words):
+            return{"error": "Error: Invalid Input"}
+
+        sqlcheck = password.lower()
+        if any(x in sqlcheck for x in scary_words):
+            return{"error": "Error: Invalid Input"}
+        # lets get a session key if user is correct
+        returnData = checkUserPassword(user,password)
+        if(returnData[0] == 'true'):
+            setSessionKey(user, returnData[1])
+            return {"session_key": returnData[1], "error": ""}
+    return {"error": "Invalid Username or Password"}
+
+@appFlask.route('/api/session', methods=['POST'])
+@cross_origin(supports_credentials=True)
+@api_required
+def trySession():
+    scary_words = ["select" ,"delete", "drop", "remove", "insert", "update", "create", "alter"]
+    print("trying to check session")
+    content_type = request.headers.get('Content-Type')
+    if content_type == 'application/json':
+        json = request.json
+        print(json)
+        user = json['username']
+        session = json['session']
+        print(f"user = {user} and session = {session}")
+        sqlcheck = user.lower()
+        if any(x in sqlcheck for x in scary_words):
+            return jsonify("Error: Invalid Input")
+
+        sqlcheck = str(session).lower()
+        if any(x in sqlcheck for x in scary_words):
+            return jsonify("Error: Invalid Input")
+        # lets check to make sure the session key is real
+        # closest thing to server side we have..... eh
+        return jsonify(checkSessionKey(user,session))
     return jsonify("deny")
+
+def checkSessionKey(username, password):
+    # test db connection
+    results = db.session.execute("SELECT * from users;").fetchall()
+    users = []
+    print(username)
+    print(password)
+    for result in results:
+        users.append(result)
+    for user in users:
+        #results = list(db.session.execute(f"SELECT * from users where username=\"{user}\";").fetchall())
+        #print(results)
+        print(f"user = {user[0]} and username = {username}")
+        if(user[0] == username):
+            sessionKey = user[1]
+            if(password == sessionKey):
+                print('session key matched')
+                return "allow"
+        #if(users[0] == user):
+        #    print("user found.. checking password")
+        #    if()
+    return "deny"
+
+def setSessionKey(user, key):
+    #testdb
+    results = db.session.execute(f"UPDATE users SET session = \"{key}\" WHERE username =\"{user}\";")
+    db.session.commit()
 
 
 def updateStockPicks(user, newpick):
@@ -158,11 +243,95 @@ def updateStockPicks(user, newpick):
         results = db.session.execute(f"UPDATE stock_picks SET stock= \"{newpick}\" WHERE user=\"{user}\";")
         db.session.commit()
         # TODO: return some kind of json response
-        return
+        print(f"Stock updated to {newpick} succesfully for user {user}.")
+        return(f"Stock updated to {newpick} succesfully.")
     # TODO: return negative json response
-    print("cannot update stock because it was already picked")
-    return
+    print(f"Error: Cannot update to {newpick} because it was already picked -- {user}")
+    return(f"Error: Cannot update to {newpick} because it was already picked")
 
+def getStock(user):
+    #testdbconnection
+    results = db.session.execute("SELECT * from stock_picks;").fetchall()
+    picks = []
+    for current in results:
+        picks.append(current)
+    for pick in picks:
+        print(pick)
+        print(user)
+        if pick[0] == user:
+            results = {}
+            results['stock'] = pick[1]
+            results['status'] = pick[2]
+            results['error'] = ""
+            return results
+    results = {}
+    results['stock'] = ''
+    results['error'] = ''
+    return(results)
+
+@appFlask.route('/api/get_stock', methods=['POST'])
+@cross_origin(supports_credentials=True)
+@api_required
+def getStockPick():
+    scary_words = ["select" ,"delete", "drop", "remove", "insert", "update", "create", "alter"]
+    content_type = request.headers.get('Content-Type')
+    if content_type == 'application/json':
+        json = request.json
+        print(json)
+        user = json['user']
+        sqlcheck = user.lower()
+        if any(x in sqlcheck for x in scary_words):
+            return jsonify("Error: Invalid Input")
+    
+        print("trying to get stock for user "+user)
+        returndata = getStock(user)
+        print(returndata)
+        return jsonify(returndata)
+    else:
+        results = {}
+        results['error'] = 'API Error 420'
+        return(jsonify(results))
+
+
+def checkPickTime():
+    today = date.today()
+    d1 = today.strftime("%d")
+    y1 = today.strftime("%Y")
+    if (int(d1) < 19 and int(y1) < 2023):
+        return False
+    return True
+
+@appFlask.route('/api/pick_stock', methods=['POST'])
+@cross_origin(supports_credentials=True)
+@api_required
+def apiStockPick():
+
+    # can we pick stocks yet?
+    #if(checkPickTime() == False):
+     #   return jsonify("Error: Sorry, you can't pick a stock til Market Close on Monday.")
+    scary_words = ["select" ,"delete", "drop", "remove", "insert", "update", "create", "alter"]
+    content_type = request.headers.get('Content-Type')
+    if content_type == 'application/json':
+        json = request.json
+        print(json)
+        user = json['user']
+        choice = json['stock']
+        sqlcheck = user.lower()
+        if any(x in sqlcheck for x in scary_words):
+            return jsonify("Error: Invalid Input")
+
+        sqlcheck = choice.lower()
+        if any(x in sqlcheck for x in scary_words):
+            return jsonify("Error: Invalid Input")
+
+        
+        choice=choice.upper()
+        if("$" not in choice):
+            choice = "$"+choice
+        print("trying to pick stock for user "+user)
+        return jsonify(pickStock(user,choice))
+    else:
+        return jsonify("API Error")
 
 def pickStock(user, stock_pick):
     results = db.session.execute("SELECT * from stock_picks;").fetchall()
@@ -171,6 +340,9 @@ def pickStock(user, stock_pick):
         picks.append(current)
     notPicked = True
     for pick in picks:
+        if pick[0] == user:
+            #return("Error: You have already chosen a stock. Contact Papa Pres for help.")
+            return updateStockPicks(user, stock_pick)
         if pick[1] == stock_pick:
             notPicked = False
     
@@ -180,10 +352,11 @@ def pickStock(user, stock_pick):
         results = db.session.execute(f"insert into stock_picks values(\"{user}\", \"{stock_pick}\", \"Pending\");")
         db.session.commit()
         # TODO: return some kind of json response
-        return
+        print(f"Picked {stock_pick} for {user}")
+        return "Stock succesfully sent to the Stonks servers"
     # TODO: return negative json response
-    print("Stock was already picked by a user")
-    return
+    print(f"{user} cannot pick {stock_pick} because it has already been picked")
+    return(f"Error: {stock_pick} was already picked by another user")
 
 
 
@@ -193,6 +366,7 @@ def pickStock(user, stock_pick):
 def checkUserPassword(username, password):
     results = db.session.execute("SELECT * from users;").fetchall()
     users = []
+    returnData = []
     for result in results:
         users.append(result)
     for user in users:
@@ -207,11 +381,14 @@ def checkUserPassword(username, password):
             print(f"current = {current_pwd} and hash = {hashed_pwd.decode('utf-8')}")
             if(current_pwd == hashed_pwd.decode('utf-8')):
                 print('access granted')
-                return True
+                returnData.append('true')
+                returnData.append(str(random.getrandbits(64)))
+                return returnData
         #if(users[0] == user):
         #    print("user found.. checking password")
         #    if()
-    return False
+    returnData.append('false')
+    return returnData
 
 @appFlask.route('/api/SPY', methods=['GET', 'POST'])
 def get_spy():
@@ -292,5 +469,5 @@ def random_spy():
 
 if __name__ == "__main__":
     #from waitress import serve
-    appFlask.run(debug=True)
+    appFlask.run(debug=True, host="0.0.0.0")
     #serve(appFlask, host="0.0.0.0", port=8080)
