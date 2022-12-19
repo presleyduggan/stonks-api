@@ -14,7 +14,7 @@ appFlask = Flask(__name__)
 CORS(appFlask, supports_credentials=True)
 SQLALCHEMY_DATABASE_URI = "mysql+mysqlconnector://{username}:{password}@{hostname}/{databasename}".format(
     username="",
-    password="!",
+    password="",
     hostname="",
     databasename="",
 )
@@ -40,7 +40,7 @@ def api_required(func):
     @functools.wraps(func)
     def decorator(*args, **kwargs):
         if request.json:
-            api_key = request.json.get("api_key")
+            api_key = request.json.get("api_key") # will switch to header instead of body at some point
         else:
             return {"error": "Please provide an API key"}, 400
         # Check if API key is correct and valid
@@ -141,13 +141,31 @@ def updateUsers():
         users.append(user)
     print(users[0])
 
-
-def updatePassword(user, password):
+@appFlask.route('/api/change-password', methods=['POST'])
+@cross_origin(supports_credentials=True)
+@api_required
+def updatePassword(user, sessionkey, password):
     print("update")
+    scary_words = ["select" ,"delete", "drop", "remove", "insert", "update", "create", "alter"]
+    sqlcheck = user.lower()
+    if any(x in sqlcheck for x in scary_words):
+        return{"error": "Error: Invalid Input"}
+
+    sqlcheck = password.lower()
+    if any(x in sqlcheck for x in scary_words):
+        return{"error": "Error: Invalid Input"}
+
+    sqlcheck = sessionkey.lower()
+    if any(x in sqlcheck for x in scary_words):
+        return{"error": "Error: Invalid Input"}
+
+    if(checkSessionKey(user,sessionkey) == False):
+        return{"error": "Error: User authentication error", "message": ""}
     salt= bcrypt.gensalt()
     hashed_pwd = bcrypt.hashpw(bytes(password, "utf-8"), salt)
     results = db.session.execute(f"UPDATE users SET password = \"{hashed_pwd.decode('utf-8')}\", salt = \"{salt.decode('utf-8')}\" WHERE username =\"{user}\";")
     db.session.commit()
+    return{"error": "", "message": "Password changed."}
 
 @appFlask.route('/api/login', methods=['POST'])
 @cross_origin(supports_credentials=True)
