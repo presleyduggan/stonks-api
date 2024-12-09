@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS, cross_origin
 from flask_sqlalchemy import SQLAlchemy
 from yahoo_fin import stock_info as si
+import yfinance as yf
 from decimal import Decimal
 import pandas as pd
 import random
@@ -13,17 +14,17 @@ import functools
 
 appFlask = Flask(__name__)
 CORS(appFlask, supports_credentials=True)
-SQLALCHEMY_DATABASE_URI = "mysql+mysqlconnector://{username}:{password}@{hostname}/{databasename}".format(
-    username="",
-    password="",
-    hostname="",
-    databasename="",
-)
-appFlask.config["SQLALCHEMY_DATABASE_URI"] = SQLALCHEMY_DATABASE_URI
-appFlask.config["SQLALCHEMY_POOL_RECYCLE"] = 299
-appFlask.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+#SQLALCHEMY_DATABASE_URI = "mysql+mysqlconnector://{username}:{password}@{hostname}/{databasename}".format(
+#    username="",
+#    password="",
+#    hostname="",
+#    databasename="",
+#)
+#appFlask.config["SQLALCHEMY_DATABASE_URI"] = SQLALCHEMY_DATABASE_URI
+#appFlask.config["SQLALCHEMY_POOL_RECYCLE"] = 299
+#appFlask.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-db = SQLAlchemy(appFlask)
+#db = SQLAlchemy(appFlask)
 
 users = []
 
@@ -58,7 +59,7 @@ def api_required(func):
 def get_initial_prices(stock_dict):
     list_o_prices = []
     for i in range(0, len(stock_dict["ticker"])):
-        prices = round(si.get_data(stock_dict["ticker"][i] , start_date = '12/31/2021'), 2)
+        prices = round(si.get_data(stock_dict["ticker"][i] , start_date = '12/31/2022'), 2)
         list_o_prices.append(prices['close'][0])
 
     # print 
@@ -116,9 +117,12 @@ def home():
     #updateUsers()
     #print(len(users))
     #print(users[0])
-    results = db.session.execute("SELECT * from stock_picks;")
-    print(results.fetchall())
-    return "This site is no longer valid and is only used for API purposes. Please visit www.pres.dev/stonks"
+    #results = db.session.execute("SELECT * from stock_picks;")
+    #print(results.fetchall())
+    #test = yf.Ticker("MSFT")
+    #print((test.info['currentPrice']))
+    return(str(yf.Ticker("MSFT").info['currentPrice']))
+    #return "This site is no longer valid and is only used for API purposes. Please visit www.pres.dev/stonks"
 
 
 def updateUsers():
@@ -127,6 +131,37 @@ def updateUsers():
     for user in results:
         users.append(user)
     print(users[0])
+
+@appFlask.route('/api/v1/get_price', methods=['POST'])
+@cross_origin(supports_credentials=True)
+def getStockPrice():
+    print("hi")
+    content_type = request.headers.get('Content-Type')
+    if content_type == 'application/json':
+        json = request.json
+        #test = jsonify(ticker=json['ticker'], price = round(si.get_live_price(json['ticker']),2))
+        #return(jsonify(ticker=json['ticker'], price = round(si.get_live_price(json['ticker']),2)))
+        #print(jsonify(ticker=json['ticker'], price = round((yf.Ticker("").info['currentPrice']),2)))
+        #print(json['ticker'])
+        #print('\n')
+        #print(str(json['ticker']) + str('\n') + str(yf.Ticker(json['ticker']).history(period="1d")['Close'][0]))
+        return(jsonify(ticker=json['ticker'], price = round((yf.Ticker(json['ticker']).history(period="1d")['Close'][0]),2)))
+        #return {"msg": "Bad Request"}, 400
+    else:
+        return {"msg": "Bad Request"}, 400
+    
+
+""" @appFlask.route('/api/v1/get_price_spy', methods=['GET'])
+@cross_origin(supports_credentials=True)
+def getStockSPYPrice():
+        #print(jsonify(price = round((yf.Ticker("MSFT").info['currentPrice']),2)))
+        return(jsonify(price = round((yf.Ticker("SPY").info['currentPrice']),2))) """
+
+@appFlask.route('/api/v1/get_price_spy', methods=['GET'])
+@cross_origin(supports_credentials=True)
+def getSpyPrice():
+    return(jsonify(ticker='SPY', price = round((yf.Ticker("SPY").history(period="1d")['Close'][0]),2))) #round(si.get_live_price('SPY'),2)))
+
 
 @appFlask.route('/api/change-password', methods=['POST'])
 @cross_origin(supports_credentials=True)
@@ -411,7 +446,6 @@ def pickStock(user, stock_pick):
 
 
 
-
 def checkUserPassword(username, password):
     testDBConnection()
     results = db.session.execute("SELECT * from users;").fetchall()
@@ -466,8 +500,8 @@ def check_pwd():
 def stonk_api():
     #start = time.time()
     stonk_data = {}
-    stonk_data["names"] = ['David', 'Jack', 'Jawsh', 'Mark', 'Mitch', 'Poles', 'Presley', 'Rex', 'Sean']
-    stonk_data["ticker"] = ['SMRT', 'AI', 'DIS', 'SE', 'AMD', 'ROKU', 'AAPL', 'NVDA', 'IBM'] # Mitch is now AMD -- XLNX acquired
+    stonk_data["names"] = ['David', 'Dhiraj', 'Jack', 'Jawsh', 'Logan', 'Mark', 'Mitch', 'Poles', 'Presley', 'Rex', 'Sean']
+    stonk_data["ticker"] = ['CHKP', 'AI', 'DIS', 'SE', 'AMD', 'ROKU', 'AAPL', 'NVDA', 'IBM'] # Mitch is now AMD -- XLNX acquired
     stonk_data["initial"] = [9.68, 31.25, 154.89, 223.71, 212.03, 228.2, 177.57, 294.11, 133.66]
     stonk_data["current"] = {}
     stonk_data["percent"] = {}
